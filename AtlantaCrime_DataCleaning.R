@@ -114,7 +114,7 @@ bg_crime_count <- bg_crime %>%
   summarise(count = sum(count, na.rm = TRUE)) %>% 
   st_drop_geometry()
 
-blockgroup <- blockgroup %>%
+blockgroup_atlanta <- blockgroup_atlanta %>%
   left_join(bg_crime_count, by = "GEOID") %>% 
   mutate(violent_count = count %/% 10000, nonviolent_count = count %% 10000)
 
@@ -161,24 +161,22 @@ landuse_isna <- !is.na(landuse_dff$Percentage.sum)
 landuse <- landuse_dff[landuse_isna,]
 
 ## Remove spatial class for joining
-blockgroup_df <- st_set_geometry(blockgroup_atlanta, NULL)
+blockgroup_atlanta_with_geometry <- blockgroup_atlanta
+blockgroup_atlanta <- st_set_geometry(blockgroup_atlanta, NULL)
 landuse_df <- st_set_geometry(landuse, NULL)
 
 ## Join data
-blockgroup_joined <- blockgroup_df %>%
+blockgroup_joined <- blockgroup_atlanta %>%
   left_join(landuse_df %>% select(-NAME), by = "GEOID")
 
 ## Filter out unmatched GEOIDs between blockgroup_atlanta and landuse to remove NaN values
 missing_geoids <- setdiff(blockgroup_atlanta$GEOID, landuse_df$GEOID)
 
-blockgroup_joined <- blockgroup_atlanta %>%
-  left_join(landuse_df %>% select(-NAME), by = "GEOID") %>%
-  filter(!GEOID %in% missing_geoids)
+blockgroup_joined <- blockgroup_joined %>%
+  filter(!GEOID %in% missing_geoids) %>%
+  left_join(blockgroup_atlanta_with_geometry %>% select(GEOID, geometry), by = "GEOID") %>%
+  st_as_sf()
 
-# Reattach geometry since geometry was changed by intersection command.
-blockgroup_atlanta <- st_as_sf(blockgroup_joined, geometry = st_geometry(blockgroup_atlanta))
-
-  
 
 
 
@@ -187,14 +185,13 @@ blockgroup_atlanta <- st_as_sf(blockgroup_joined, geometry = st_geometry(blockgr
 ## Calculate the distance from each block group centroid to nearest police station
 stations <- read_csv("Data/police_stations.csv")
 stations_sf <- st_as_sf(stations, coords = c("x", "y"), crs = 3857) %>%
-  st_transform(crs = st_crs(blockgroup_atlanta))
+  st_transform(crs = st_crs(blockgroup_joined))
 
-block_centroids <- blockgroup_atlanta %>% st_centroid()
-data_final <- blockgroup_atlanta %>%
-  mutate(min_station_dist = apply(st_distance(block_centroids$geometry, stations_sf), 1, min))
+block_centroids <- blockgroup_joined %>% st_centroid()
+block_centroids <- st_transform(block_centroids, st_crs(stations_sf))
 
-
-
+data_final <- blockgroup_joined %>%
+  mutate(min_station_dist = apply(st_distance(block_centroids, stations_sf), 1, min))
 
 
 # 6. Final Data Cleaning and Save
@@ -203,7 +200,7 @@ data_final <- blockgroup_atlanta %>%
 ## Keep GEOID and Name to match for index
 columns_to_keep <- c("GEOID", "NAME", "tot_popE", "pop_den", "white_ratio", "black_ratio", "other_ratio", "median_incomeE", "less_than_hs_ratio", 
                      "Commercial", "HighdensityResidential", "Industrial", "Institutional", "LowdensityResidential", "ResidentialCommercial", "min_station_dist",
-                     "geometry")
+                     "geometry", "violent_count", "nonviolent_count")
 data_final <- data_final[, columns_to_keep]
 
 ## Remove Null Rows
