@@ -11,7 +11,6 @@ library(fastDummies)
 library(dplyr)
 census_api_key('7deb96b03ae11f23a2fb544839ee195ccd646ac3')
 
-
 # 1. Socio-economic Data
 ## Get Census data for block groups
 blockgroup <- get_acs(
@@ -36,15 +35,50 @@ blockgroup <- get_acs(
   output = "wide"
 )
 
-## Calculate race ratios and population density
+# Get Census Data of 20+ data separately
+
+# Variables for males and females aged 20+
+variables_male_female <- c(
+  # Males 20+
+  "B01001_007E", "B01001_008E", "B01001_009E", "B01001_010E", "B01001_011E",
+  "B01001_012E", "B01001_013E", "B01001_014E", "B01001_015E", "B01001_016E", 
+  "B01001_017E", "B01001_018E", "B01001_019E", "B01001_020E", "B01001_021E",
+  "B01001_022E", "B01001_023E","B01001_024E", "B01001_025E",  
+  # Females 20+
+  "B01001_031E", "B01001_032E", "B01001_033E", "B01001_034E", "B01001_035E",
+  "B01001_036E", "B01001_037E", "B01001_038E", "B01001_039E", "B01001_040E",
+  "B01001_041E", "B01001_042E", "B01001_043E", "B01001_044E", "B01001_045E",
+  "B01001_046E", "B01001_047E", "B01001_048E", "B01001_049E"
+)
+
+variables_male_female <- gsub("E$", "", variables_male_female)
+
+age_20_data <- get_acs(
+  geography = 'block_group',
+  variables = variables_male_female,
+  year = 2022,
+  state = "GA",
+  county = c("Fulton", "DeKalb", "Clayton"),
+  survey = "acs5",
+  geometry = FALSE,  # No geometry needed here
+  output = "wide"
+)
+
+age_20_data <- age_20_data %>%
+  select(GEOID, ends_with("E")) %>%
+  mutate(age_20_popE = rowSums(select(., starts_with("B01001")), na.rm = TRUE)) %>%
+  select(GEOID, age_20_popE)
+
+## Calculate race ratios and population density and left-join with age_20_data
 blockgroup <- blockgroup %>%
+  left_join(age_20_data, by = "GEOID") %>%
   select(GEOID, NAME, geometry, ends_with("E")) %>%
   mutate(
     pop_den = tot_popE / st_area(.),
     white_ratio = whiteE / race_totalE,
     black_ratio = blackE / race_totalE,
     other_ratio = (nativeE + asianE + pacific_islanderE + otherE) / race_totalE,
-  )
+  ) 
 
 ## Get tract-level data
 ## There are not data on education level and median income for blockgroup, thus Get tract level data and put it to corresponding block groups.
@@ -87,7 +121,6 @@ blockgroup_atlanta <- blockgroup[st_intersects(blockgroup, atlanta, sparse = FAL
 
 
 
-
 # 3. Crime Data
 
 ## Load crime data and categorize violent and non-violent crimes
@@ -118,7 +151,9 @@ blockgroup_atlanta <- blockgroup_atlanta %>%
   left_join(bg_crime_count, by = "GEOID") %>% 
   mutate(violent_count = count %/% 10000, nonviolent_count = count %% 10000)
 
-
+blockgroup_atlanta <- blockgroup_atlanta %>%
+  mutate(violent_ratio = violent_count / age_20_popE,
+         nonviolent_ratio = nonviolent_count / age_20_popE)
 
 
 # 4. Land-use Data
@@ -179,7 +214,6 @@ blockgroup_joined <- blockgroup_joined %>%
 
 
 
-
 # 5. Police Station Data
 
 ## Calculate the distance from each block group centroid to nearest police station
@@ -198,9 +232,10 @@ data_final <- blockgroup_joined %>%
 
 ## Keep Columns we will use for regression (it can be changed later)
 ## Keep GEOID and Name to match for index
-columns_to_keep <- c("GEOID", "NAME", "tot_popE", "pop_den", "white_ratio", "black_ratio", "other_ratio", "median_incomeE", "less_than_hs_ratio", 
+columns_to_keep <- c("GEOID", "NAME", "tot_popE", "age_20_popE", "pop_den", "white_ratio", "black_ratio", "other_ratio", "median_incomeE", "less_than_hs_ratio", 
                      "Commercial", "HighdensityResidential", "Industrial", "Institutional", "LowdensityResidential", "ResidentialCommercial", "min_station_dist",
-                     "geometry", "violent_count", "nonviolent_count")
+                     "geometry", "violent_count", "nonviolent_count","violent_ratio", "nonviolent_ratio")
+
 data_final <- data_final[, columns_to_keep]
 
 ## Remove Null Rows
@@ -213,6 +248,8 @@ st_write(data_final, "data_final.geojson", driver = "GeoJSON")
 ## Remove geometry
 data_final_csv <- data_final %>%
   st_drop_geometry()
+
+head(data_final_csv)
 
 ## Export to CSV
 write.csv(data_final_csv, "data_final.csv", row.names = FALSE)
