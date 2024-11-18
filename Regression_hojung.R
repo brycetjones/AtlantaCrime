@@ -4,6 +4,7 @@ library(sjPlot)
 library(car)
 library(leaps)
 library(stargazer)
+library(lmtest)
 
 getwd()
 setwd("C:/Users/Hojung Yu/Documents/GitHub/AtlantaCrime/")
@@ -25,30 +26,20 @@ reg_variables = c("pop_den", "black_ratio", "median_incomeE", "Commercial",
               "LowdensityResidential", "ResidentialCommercial",
               "min_station_dist", "violent_ratio", "nonviolent_ratio")
 
-# Normalization or Standardize
-df <- df %>%
-  mutate(violent_ratio_square = (violent_ratio*1000),
-         nonviolent_ratio_square = (nonviolent_ratio*1000))
-
-df$pop_den <- df$pop_den * 100
-df$black_ratio <- df$black_ratio * 100
-df$less_than_hs_ratio <- df$less_than_hs_ratio * 100
-
 cor_matrix <- cor(df[reg_variables])
 round(cor_matrix,2)
 
-# bestsubsets <- regsubsets(violent_ratio_square ~ pop_den + black_ratio + median_incomeE +
-#                             LowdensityResidential, data = df, nbest = 1)
-# subsets(bestsubsets, statistic = "adjr2")
-
-model_1 <- lm(violent_ratio_square ~ pop_den + median_incomeE +
+#Generalized violent ratio and black_ratio, lowdensity
+model_1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio*100) +
               LowdensityResidential, data = df)
 summary(model_1)
+ncvTest(model_1)
+plot(model_1)
 
 ##Stepwise
-null.model <- lm(violent_ratio_square ~ 1, data = df)
-full.model <- lm(violent_ratio_square ~ pop_den + median_incomeE + black_ratio +
-                   LowdensityResidential + less_than_hs_ratio, data = df)
+null.model <- lm(I(log(violent_ratio*1000 + 0.001)) ~ 1, data = df)
+full.model <- lm(I(log(violent_ratio*1000 + 0.001)) ~ pop_den + median_incomeE + I(black_ratio*100) +
+                   LowdensityResidential + I(less_than_hs_ratio*100), data = df)
 
 step.model.for <- step(null.model,
                        scope = formula(full.model),
@@ -76,6 +67,7 @@ subset.model <- regsubsets(formula(full.model),
 
 ##Subset models
 reg.summary <- summary(subset.model)
+reg.summary
 
 par(mfrow = c(2,2)) # This code specifies that, instead of showing only one graph in the plots window, you want 4 (2 x 2) graphs.
 
@@ -108,9 +100,12 @@ plot(reg.summary$bic, # BIC values on y-axis. BIC is very similar to AIC except 
 points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col="red",cex=2,pch=20)
 
 ######################optimal regression in violent crime
-subsetted.model_v1 <- lm(violent_ratio_square ~ pop_den + black_ratio +
-                           LowdensityResidential + less_than_hs_ratio, data = df)
+subsetted.model_v1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio * 100) + LowdensityResidential + I(less_than_hs_ratio * 100), data = df)
 summary(subsetted.model_v1)
+
+ncvTest(subsetted.model_v1)
+
+#241118
 
 #Violent crime model
 model_2 <- lm(nonviolent_ratio_square ~ pop_den + median_incomeE + LowdensityResidential, data = df)
