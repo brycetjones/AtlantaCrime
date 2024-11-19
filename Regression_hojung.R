@@ -103,11 +103,21 @@ points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], 
 subsetted.model_v1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio * 100) + LowdensityResidential + I(less_than_hs_ratio * 100), data = df)
 summary(subsetted.model_v1)
 
+plot(subsetted.model_v1)
+
+plot(resid(subsetted.model_v1))
+
+##Check Multicollinearity
+vif_values_v1 <- vif(subsetted.model_v1)
+barplot(vif_values_v1, main = "VIF Values", horiz = TRUE, col = "steelblue") 
+##Below 5 or 10, Since all VIF values are well below 5 or 10, 
+#there is no evidence of significant multicollinearity in your model based on these results.
+
 ncvTest(subsetted.model_v1)
 
 #241118
 
-#Violent crime model
+#############################################################NONViolent crime model
 model_2 <- lm(nonviolent_ratio_square ~ pop_den + median_incomeE + LowdensityResidential, data = df)
 summary(model_2)
 plot(fitted(model_2), resid(model_2), abline(h=0), pch =19)
