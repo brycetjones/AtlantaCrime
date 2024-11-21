@@ -26,7 +26,7 @@ colnames(df)
 
 ggpairs(df[,reg_variables])
 
-#Violent crime model
+#####################################################Violent crime model
 reg_variables = c("pop_den", "black_ratio", "white_ratio","other_ratio", "median_incomeE", "Commercial", 
               "HighdensityResidential", "Industrial","Institutional",
               "LowdensityResidential", "ResidentialCommercial",
@@ -178,19 +178,96 @@ barplot(vif_values_v1, main = "VIF Values", horiz = TRUE, col = "steelblue")
 #there is no evidence of significant multicollinearity in your model based on these results.
 
 #############################################################NONViolent crime model
-model_2 <- lm(nonviolent_ratio_square ~ pop_den + median_incomeE + LowdensityResidential, data = df)
-summary(model_2)
-plot(fitted(model_2), resid(model_2), abline(h=0), pch =19)
+#1. without logs
+outliers_regression_non <- lm(I(nonviolent_ratio*1000 + 0.001) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                          + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                            + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df)
+summary(outliers_regression_non)
 
-model_2_1 <- lm(nonviolent_ratio_square ~ pop_den + median_incomeE + Commercial, data = df)
-summary(model_2_1)
-plot(fitted(model_2_1), resid(model_2_1), abline(h=0), pch = 19)
+cooks_distance_nolog_non <- cooks.distance(outliers_regression_non)
+df$cooks_distance_nolog_non <- cooks.distance(outliers_regression_non)
 
-AIC(model_2, model_2_1)
+plot(cooks_distance_nolog_non, pch = "*", cex = 2, main = "Influential Obs by Cooks Distance")
+abline(h = 4*mean (cooks_distance_nolog_non, na.rm = T), col = "red")
+text(x = 1: length(cooks_distance_nolog_non) + 5,
+     y = cooks_distance_nolog_non,
+     col = "red",
+     labels = ifelse(cooks_distance_nolog_non > 4 * mean(cooks_distance_nolog_non, na.rm = T),
+                     names(cooks_distance_nolog_non),
+                     ""))
+
+#Remove influential observations
+noout_non <- subset(df[df$cooks_distance_nolog_non < .20, ])
+outliers_regression_noout_non <- lm(I(nonviolent_ratio*1000 + 0.001) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                                + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                                  + LowdensityResidential + ResidentialCommercial + min_station_dist, data = noout_non)
+summary(outliers_regression_noout_non)
+
+#Plot the difference
+plot_summs(outliers_regression_non, outliers_regression_noout_non, scale = TRUE)
+
+#2. with logs
+outlier.reg.non <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                  + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                    + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df)
+summary(outlier.reg.non)
+
+cook.dist.non <- cooks.distance(outlier.reg.non)
+df$cook.dist.non <- cooks.distance(outlier.reg.non)
+plot(cook.dist.non, pch = "*", cex = 2, main = "Influential Obs by Cooks Distance")
+abline(h = 4*mean (cook.dist.non, na.rm = T), col = "red")
+text(x = 1: length(cook.dist.non) + 5,
+     y = cook.dist.non,
+     col = "red",
+     labels = ifelse(cook.dist.non > 4 * mean(cook.dist, na.rm = T),
+                     names(cook.dist.non),
+                     ""))
+
+#If we want to remove outliers...
+df_noout_non <- subset(df[df$cook.dist.non <.20, ])
+outlier.reg_noout_non <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                        + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                          + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout_non)
+summary(outlier.reg_noout_non)
+
+#Compare no outliers to outliers using scaled coefficient plots
+#Will only let me run if scale = FALSE...not if it = TRUE
+plot_summs(outlier.reg.non, outlier.reg_noout_non, scale = FALSE)
+
+##Stepwise
+null.model <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ 1, data = df)
+full.model <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + median_incomeE + I(black_ratio*100) +
+                   Commercial + LowdensityResidential + ResidentialCommercial + less_than_hs_ratio + min_station_dist, data = df)
+
+step.model.for <- step(null.model,
+                       scope = formula(full.model),
+                       direction = "forward",
+                       trace = 0)
+
+step.model.back <- step(full.model,
+                        direction = "backward",
+                        trace = 0)
+
+step.model.both <- step(null.model,
+                        scope = formula(full.model),
+                        direction = "both",
+                        trace = 0)
+
+stargazer(step.model.for, step.model.back, step.model.both,
+          type = "text",
+          add.lines = list(c("AIC", round(AIC(step.model.for),1), round(AIC(step.model.back),1), round(AIC(step.model.both),1))),
+          column.labels = c("Forward", "Backward", "Both"))
+
+subset.model <- regsubsets(formula(full.model),
+                           data = df,
+                           nvmax = 5,
+                           method = "exhaustive")
+
+
 
 ##Best subset
-full.model_n <- lm(nonviolent_ratio_square ~ pop_den + median_incomeE + black_ratio +
-                     Commercial + less_than_hs_ratio, data = df)
+full.model_n <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + median_incomeE + I(black_ratio*100) +
+                     Commercial + LowdensityResidential + ResidentialCommercial + less_than_hs_ratio + min_station_dist, data = df)
 
 subset.model_n <- regsubsets(formula(full.model_n),
                              data = df,
@@ -231,5 +308,18 @@ plot(reg.summary_n$bic, # BIC values on y-axis. BIC is very similar to AIC excep
 points(which.min(reg.summary_n$bic), reg.summary_n$bic[which.min(reg.summary_n$bic)], col="red",cex=2,pch=20)
 
 ######################optimal regression in nonviolent model
-subsetted.model_v1_n <- lm(nonviolent_ratio_square ~ pop_den + LowdensityResidential + Commercial + less_than_hs_ratio, data = df)
+subsetted.model_v1_n <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + Commercial + LowdensityResidential
+                           + ResidentialCommercial + less_than_hs_ratio, data = df)
 summary(subsetted.model_v1_n)
+######################Check
+##Check Heteroskedasticity
+dev.off()
+plot(resid(subsetted.model_v1_n), main = "Residual Plot", xlab = "Values",ylab = "Residuals")
+abline(h = 0, col = "red")
+ncvTest(subsetted.model_v1_n)
+
+##Check Multicollinearity
+vif_values_v1_n <- vif(subsetted.model_v1_n)
+barplot(vif_values_v1_n, main = "VIF Values", horiz = TRUE, col = "steelblue") 
+##Below 5 or 10, Since all VIF values are well below 5 or 10, 
+#there is no evidence of significant multicollinearity in your model based on these results.
