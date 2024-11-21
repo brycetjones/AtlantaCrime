@@ -1,9 +1,15 @@
 library(tidyverse)
+library(ggplot2)
+library(jtools)
 library(GGally)
-library(sjPlot)
-library(car)
-library(leaps)
 library(stargazer)
+library(car)
+library(lmtest)
+library(sandwich)
+library(fastDummies)
+library(broom.mixed)
+library(sjPlot)
+library(leaps)
 library(lmtest)
 
 getwd()
@@ -21,7 +27,7 @@ colnames(df)
 ggpairs(df[,reg_variables])
 
 #Violent crime model
-reg_variables = c("pop_den", "black_ratio", "median_incomeE", "Commercial", 
+reg_variables = c("pop_den", "black_ratio", "white_ratio","other_ratio", "median_incomeE", "Commercial", 
               "HighdensityResidential", "Industrial","Institutional",
               "LowdensityResidential", "ResidentialCommercial",
               "min_station_dist", "violent_ratio", "nonviolent_ratio")
@@ -29,17 +35,73 @@ reg_variables = c("pop_den", "black_ratio", "median_incomeE", "Commercial",
 cor_matrix <- cor(df[reg_variables])
 round(cor_matrix,2)
 
-#Generalized violent ratio and black_ratio, lowdensity
-model_1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio*100) +
-              LowdensityResidential, data = df)
-summary(model_1)
-ncvTest(model_1)
-plot(model_1)
+#1. without logs
+outliers_regression <- lm(I(violent_ratio*1000 + 0.001) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                          + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                            + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df)
+summary(outliers_regression)
+
+cooks_distance_nolog <- cooks.distance(outliers_regression)
+df$cooks_distance_nolog <- cooks.distance(outliers_regression)
+
+plot(cooks_distance_nolog, pch = "*", cex = 2, main = "Influential Obs by Cooks Distance")
+abline(h = 4*mean (cooks_distance_nolog, na.rm = T), col = "red")
+text(x = 1: length(cooks_distance_nolog) + 5,
+     y = cooks_distance_nolog,
+     col = "red",
+     labels = ifelse(cooks_distance_nolog > 4 * mean(cooks_distance_nolog, na.rm = T),
+                     names(cooks_distance_nolog),
+                     ""))
+
+#Remove influential observations
+noout <- subset(df[df$cooks_distance_nolog < .20, ])
+outliers_regression_noout <- lm(I(violent_ratio*1000 + 0.001) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                                + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                                  + LowdensityResidential + ResidentialCommercial + min_station_dist, data = noout)
+summary(outliers_regression_noout)
+
+#Plot the difference
+plot_summs(outliers_regression, outliers_regression_noout, scale = TRUE)
+
+#2. with logs
+outlier.reg <- lm(I(log(violent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                  + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                    + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df)
+summary(outlier.reg)
+
+cook.dist <- cooks.distance(outlier.reg)
+df$cook.dist <- cooks.distance(outlier.reg)
+plot(cook.dist, pch = "*", cex = 2, main = "Influential Obs by Cooks Distance")
+abline(h = 4*mean (cook.dist, na.rm = T), col = "red")
+text(x = 1: length(cook.dist) + 5,
+     y = cook.dist,
+     col = "red",
+     labels = ifelse(cook.dist > 4 * mean(cook.dist, na.rm = T),
+                     names(cook.dist),
+                     ""))
+
+#If we want to remove outliers...
+df_noout <- subset(df[df$cook.dist <.20, ])
+outlier.reg_noout <- lm(I(log(violent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
+                        + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
+                          + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout)
+summary(outlier.reg_noout)
+
+#Compare no outliers to outliers using scaled coefficient plots
+#Will only let me run if scale = FALSE...not if it = TRUE
+plot_summs(outlier.reg, outlier.reg_noout, scale = FALSE)
+
+
+# #3. Real Regression_with logs / Generalized violent ratio and black_ratio, lowdensity
+# model_1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio*100) +
+#               LowdensityResidential, data = df)
+# summary(model_1)
+# ncvTest(model_1)
 
 ##Stepwise
 null.model <- lm(I(log(violent_ratio*1000 + 0.001)) ~ 1, data = df)
-full.model <- lm(I(log(violent_ratio*1000 + 0.001)) ~ pop_den + median_incomeE + I(black_ratio*100) +
-                   LowdensityResidential + I(less_than_hs_ratio*100), data = df)
+full.model <- lm(I(log(violent_ratio*1000 + 0.001)) ~ pop_den + median_incomeE + I(black_ratio*100) + median_incomeE + Commercial + 
+                   LowdensityResidential + min_station_dist + I(less_than_hs_ratio*100), data = df)
 
 step.model.for <- step(null.model,
                        scope = formula(full.model),
@@ -100,22 +162,20 @@ plot(reg.summary$bic, # BIC values on y-axis. BIC is very similar to AIC except 
 points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col="red",cex=2,pch=20)
 
 ######################optimal regression in violent crime
-subsetted.model_v1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio * 100) + LowdensityResidential + I(less_than_hs_ratio * 100), data = df)
+subsetted.model_v1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio * 100) + Commercial + LowdensityResidential + I(less_than_hs_ratio * 100), data = df)
 summary(subsetted.model_v1)
+dev.off()
 
-plot(subsetted.model_v1)
-
-plot(resid(subsetted.model_v1))
+##Check Heteroskedasticity
+plot(resid(subsetted.model_v1), main = "Residual Plot", xlab = "Values",ylab = "Residuals")
+abline(h = 0, col = "red")
+ncvTest(subsetted.model_v1)
 
 ##Check Multicollinearity
 vif_values_v1 <- vif(subsetted.model_v1)
 barplot(vif_values_v1, main = "VIF Values", horiz = TRUE, col = "steelblue") 
 ##Below 5 or 10, Since all VIF values are well below 5 or 10, 
 #there is no evidence of significant multicollinearity in your model based on these results.
-
-ncvTest(subsetted.model_v1)
-
-#241118
 
 #############################################################NONViolent crime model
 model_2 <- lm(nonviolent_ratio_square ~ pop_den + median_incomeE + LowdensityResidential, data = df)
