@@ -54,10 +54,11 @@ text(x = 1: length(cooks_distance_nolog) + 5,
                      ""))
 
 #Remove influential observations
-noout <- subset(df[df$cooks_distance_nolog < .20, ])
+noout <- subset(df[df$cooks_distance_nolog < 4 * mean(cooks_distance_nolog, na.rm = T), ])
 outliers_regression_noout <- lm(I(violent_ratio*1000 + 0.001) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
                                 + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
                                   + LowdensityResidential + ResidentialCommercial + min_station_dist, data = noout)
+
 summary(outliers_regression_noout)
 
 #Plot the difference
@@ -81,7 +82,7 @@ text(x = 1: length(cook.dist) + 5,
                      ""))
 
 #If we want to remove outliers...
-df_noout <- subset(df[df$cook.dist <.20, ])
+df_noout <- subset(df[df$cook.dist <4 * mean(cook.dist, na.rm = T), ])
 outlier.reg_noout <- lm(I(log(violent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
                         + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
                           + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout)
@@ -90,7 +91,6 @@ summary(outlier.reg_noout)
 #Compare no outliers to outliers using scaled coefficient plots
 #Will only let me run if scale = FALSE...not if it = TRUE
 plot_summs(outlier.reg, outlier.reg_noout, scale = FALSE)
-
 
 # #3. Real Regression_with logs / Generalized violent ratio and black_ratio, lowdensity
 # model_1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio*100) +
@@ -124,7 +124,7 @@ stargazer(step.model.for, step.model.back, step.model.both,
 
 subset.model <- regsubsets(formula(full.model),
                            data = df,
-                           nvmax = 5,
+                           nvmax = 8,
                            method = "exhaustive")
 
 ##Subset models
@@ -163,7 +163,12 @@ points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], 
 
 ######################optimal regression in violent crime
 subsetted.model_v1 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio * 100) + Commercial + LowdensityResidential + I(less_than_hs_ratio * 100), data = df)
+subsetted.model_v2 <- lm(I(log(violent_ratio*1000 + 0.001)) ~ I(black_ratio * 100) + LowdensityResidential, data = df)
+AIC(subsetted.model_v1)
+AIC(subsetted.model_v2)
+
 summary(subsetted.model_v1)
+summary(subsetted.model_v2)
 dev.off()
 
 ##Check Heteroskedasticity
@@ -197,14 +202,15 @@ text(x = 1: length(cooks_distance_nolog_non) + 5,
                      ""))
 
 #Remove influential observations
-noout_non <- subset(df[df$cooks_distance_nolog_non < .20, ])
+noout_non <- subset(df[df$cooks_distance_nolog_non < 4 * mean(cooks_distance_nolog_non, na.rm = T), ])
 outliers_regression_noout_non <- lm(I(nonviolent_ratio*1000 + 0.001) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
                                 + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
                                   + LowdensityResidential + ResidentialCommercial + min_station_dist, data = noout_non)
 summary(outliers_regression_noout_non)
 
 #Plot the difference
-plot_summs(outliers_regression_non, outliers_regression_noout_non, scale = TRUE)
+
+plot_summs(outliers_regression_non, outliers_regression_noout_non, scale = FALSE)
 
 #2. with logs
 outlier.reg.non <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
@@ -219,12 +225,12 @@ abline(h = 4*mean (cook.dist.non, na.rm = T), col = "red")
 text(x = 1: length(cook.dist.non) + 5,
      y = cook.dist.non,
      col = "red",
-     labels = ifelse(cook.dist.non > 4 * mean(cook.dist, na.rm = T),
+     labels = ifelse(cook.dist.non > 4 * mean(cook.dist.non, na.rm = T),
                      names(cook.dist.non),
                      ""))
 
 #If we want to remove outliers...
-df_noout_non <- subset(df[df$cook.dist.non <.20, ])
+df_noout_non <- subset(df[df$cook.dist.non <4 * mean(cook.dist.non, na.rm = T), ])
 outlier.reg_noout_non <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + I(black_ratio*100) + I(white_ratio*100) + I(other_ratio*100)
                         + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
                           + LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout_non)
@@ -260,9 +266,8 @@ stargazer(step.model.for, step.model.back, step.model.both,
 
 subset.model <- regsubsets(formula(full.model),
                            data = df,
-                           nvmax = 5,
+                           nvmax = 8,
                            method = "exhaustive")
-
 
 
 ##Best subset
@@ -271,7 +276,7 @@ full.model_n <- lm(I(log(nonviolent_ratio*1000 + 0.001)) ~ pop_den + median_inco
 
 subset.model_n <- regsubsets(formula(full.model_n),
                              data = df,
-                             nvmax = 6,
+                             nvmax = 8,
                              method = "exhaustive")
 
 reg.summary_n <- summary(subset.model_n)
