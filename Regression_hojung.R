@@ -12,6 +12,8 @@ library(sjPlot)
 library(leaps)
 library(lmtest)
 library(MASS)
+library(psych)
+library(pscl)
 
 getwd()
 setwd("C:/Users/Hojung Yu/Documents/GitHub/AtlantaCrime/")
@@ -148,11 +150,16 @@ vio_ols_v1 <- lm(I(vio_crimerate*100) ~ pop_den + I(nonwhite_ratio * 100) +  I(l
 vio_ols_v2 <- lm(I(vio_crimerate*100) ~ pop_den + I(nonwhite_ratio * 100) +  I(less_than_hs_ratio * 100) 
                  + Industrial + Institutional + min_station_dist
                  + median_incomeE + Commercial + HighdensityResidential + ResidentialCommercial, data = df_noout_vio)
-AIC(vio_ols_v1)
-AIC(vio_ols_v2)
 
 summary(vio_ols_v1)
 summary(vio_ols_v2)
+
+AIC(vio_ols_v1)
+AIC(vio_ols_v2)
+
+##Check Multicollinearity
+vif_v1 <- vif(vio_ols_v1)
+barplot(vif_v1, main = "VIF Values", horiz = TRUE, col = "steelblue") # seems pretty good
 
 ##Check Heteroskedasticity
 plot(predict(vio_ols_v1), 
@@ -164,7 +171,7 @@ abline(h = 0, col = 'red', lty = 2)
 ncvTest(vio_ols_v1) 
 #Chisquare = 108.5503, Shows strong heteroskedasticity!!! So, I generalized vio_crimerate
 
-vio_ols_v1_log <- lm(I(log(vio_crimerate*100 + 0.001)) ~ pop_den + I(nonwhite_ratio * 100) +  I(less_than_hs_ratio * 100) 
+vio_ols_v1_log <- lm(I(log(vio_crimerate + 0.00001)) ~ pop_den + I(nonwhite_ratio * 100) +  I(less_than_hs_ratio * 100) 
                  + Industrial + Institutional + LowdensityResidential + min_station_dist, data = df_noout_vio)
 summary(vio_ols_v1_log)
 
@@ -175,17 +182,110 @@ plot(predict(vio_ols_v1_log),
      main = "Residuals vs. Predicted")
 abline(h = 0, col = 'red', lty = 2)
 ncvTest(vio_ols_v1_log) 
+#Chisquare 156.1277 even bigger
+
+#Still not fixing!!
+
+#Considering interactive term(Yanfu)
+#for non_white ratio and population density, there might be an interaction in how they 
+#influence the crime rate.
+
+#check pop_den and non-white for interaction
+range(df_noout_vio$nonwhite_ratio)
+range(df_noout_vio$pop_den)
+
+#low and high value subsets for non_white
+nonwhite_low <- df_noout_vio[df_noout_vio$nonwhite_ratio <= 0.2, ]
+nonwhite_high <- df_noout_vio[df_noout_vio$nonwhite_ratio >= 0.8, ]
+nw_low_mod <- lm(I(log(vio_crimerate * 100 + 0.001)) ~ pop_den, data = nonwhite_low)
+summary(nw_low_mod)
+nw_high_mod <- lm(I(log(vio_crimerate * 100 + 0.001)) ~ pop_den, data = nonwhite_high)
+summary(nw_high_mod)
+
+par(mfrow = c(1,1))
+plot(x = nonwhite_low$pop_den, y = log(nonwhite_low$vio_crimerate) * 100 + 0.001, 
+     pch = 19, xlab = "population density", ylab = "log_crimerate", col = rgb(red = 0, green = 0, blue = 1, alpha = 0.25)) +
+  abline(nw_low_mod, col = "blue", lwd = 2) +
+  points(x = nonwhite_high$pop_den, log(nonwhite_high$vio_crimerate) * 100 + 0.001, 
+         col = rgb(red = 1, green = 0, blue = 0, alpha = 0.25), pch = 19) +
+  abline(nw_high_mod, col = "red", lwd = 2)
+#from this plot we can see the slopes of low non white and high non white are different. There is
+#an interaction between non white and pop den.
+
+#We can now add the interaction term to model
+vio_ols_v1_log_interaction <- lm(I(log(vio_crimerate*100 + 0.001)) ~ pop_den + I(nonwhite_ratio * 100) + pop_den:I(nonwhite_ratio * 100)
+                                 + I(less_than_hs_ratio * 100) + Industrial + Institutional
+                                 + LowdensityResidential + min_station_dist, data = df_noout_vio)
+
+summary(vio_ols_v1_log_interaction)
+
+plot(predict(vio_ols_v1_log_interaction), 
+     vio_ols_v1_log_interaction$residuals, 
+     xlab = "Predicted values",
+     ylab = "Residuals",
+     main = "Residuals vs. Predicted")
+abline(h = 0, col = 'red', lty = 2)
+
+#Check heteroskedasticity
+ncvTest(vio_ols_v1_log_interaction)
+#Chisquare 170 even bigger
+
+#The interaction term is statistically significant.
 
 # Considering glm function (WIP_HOJUNG)
+# create binary column for violent crime rate
+median_crimerate <- median(df_noout_vio$vio_crimerate, na.rm = TRUE)
+df_noout_vio$binary_vio <- ifelse(df_noout_vio$vio_crimerate > median_crimerate, 1, 0)
 
-vio_nb <- glm.nb(vio_crimerate ~ pop_den + I(nonwhite_ratio * 100) +
-                   I(less_than_hs_ratio * 100) + Industrial + Institutional +
-                   LowdensityResidential + min_station_dist, data = df_noout_vio)
-summary(vio_nb)
+median_crimerate <- median(df$vio_crimerate, na.rm = TRUE)
+df$binary_vio <- ifelse(df$vio_crimerate > median_crimerate, 1, 0)
 
-##Check Multicollinearity
-vif_v1 <- vif(vio_ols_v1)
-barplot(vif_v1, main = "VIF Values", horiz = TRUE, col = "steelblue") 
+# binary logical regression
+vio_glm_v1 <- glm(binary_vio ~ I(pop_den * 1000) + I(nonwhite_ratio * 100) + 
+                    I(less_than_hs_ratio * 100) + Industrial + Institutional + 
+                    LowdensityResidential + min_station_dist, data = df_noout_vio, family = "binomial")
+
+# binary logical regression
+vio_glm_v2 <- glm(binary_vio ~ I(pop_den * 1000) + I(nonwhite_ratio * 100) + 
+                 I(less_than_hs_ratio * 100) + + Institutional +
+                 LowdensityResidential, data = df_noout_vio, family = "binomial")
+summary(vio_glm_v1)
+summary(vio_glm_v2)
+vif(vio_glm_v1)
+vif(vio_glm_v2)
+# creating odds ratio
+# Regression result (with odds ratio conversion)
+round( # Rounds the numbers up to 3 digits
+  cbind( # Column-bind Odds Ratio to the regerssion output
+    "Odds Ratio" = exp(vio_glm$coefficients),
+    summary(vio_glm)$coefficients
+  ),3)
+
+# pseudo R-squared 0.4361733
+pR2(vio_glm_v1)[4]
+pR2(vio_glm_v2)[4]
+
+# plotting the logistic curve
+
+# population density with violent crime
+ggplot(df_noout_vio, aes(I(pop_den * 1000), binary_vio)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  ggtitle("Logistic regression model fit") +
+  xlab("Population density") +
+  ylab("Probability of violent crime")
+
+# nonwhite_ratio with violent crime
+ggplot(df_noout_vio, aes(I(nonwhite_ratio * 100), binary_vio)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  ggtitle("Logistic regression model fit") +
+  xlab("Non white ratio") +
+  ylab("Probability of violent crime")
+
+
+summary(df$nonvio_crimerate)
+
 ##Below 5 or 10, Since all VIF values are well below 5 or 10, 
 #there is no evidence of significant multicollinearity in your model based on these results.
 
