@@ -21,13 +21,11 @@ setwd("C:/Users/Hojung Yu/Documents/GitHub/AtlantaCrime/")
 
 df_org <- read.csv("data_final.csv")
 
-head(df)
-nrow(df)
-ncol(df)
-summary(df)
-
-
-colnames(df)
+head(df_org)
+nrow(df_org)
+ncol(df_org)
+summary(df_org)
+colnames(df_org)
 
 df <- df_org
 
@@ -49,11 +47,9 @@ reg_variables = c("pop_den", "white_ratio", "nonwhite_ratio", "median_incomeE",
                   "Institutional", "LowdensityResidential","ResidentialCommercial",
                   "min_station_dist", "vio_crimerate","nonvio_crimerate")
 
-
 ggpairs(df[,reg_variables])
 
 #####################################################Violent crime model
-
 
 cor_matrix <- cor(df[reg_variables])
 round(cor_matrix,2)
@@ -83,6 +79,7 @@ ols_1_noout <- lm(vio_crimerate ~ pop_den + nonwhite_ratio +
                     LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout_vio)
 
 summary(ols_1_noout)
+
 # Compare no outliers to outliers using scaled coefficient plots
 dev.off()
 plot_summs(ols_1, ols_1_noout, scale = TRUE) +
