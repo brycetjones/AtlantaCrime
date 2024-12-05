@@ -14,20 +14,17 @@ library(lmtest)
 library(MASS)
 library(psych)
 library(pscl)
-library(gridExtra)
 
-
-
-getwd()
-setwd("C:/Users/Hojung Yu/Documents/GitHub/AtlantaCrime/")
-
+#Data Manipulation#######
 df_org <- read.csv("data_final.csv")
 
 head(df_org)
 nrow(df_org)
 ncol(df_org)
 summary(df_org)
-colnames(df_org)
+
+
+colnames(df)
 
 df <- df_org
 
@@ -44,38 +41,21 @@ df["min_station_dist"] = df_org["min_station_dist"] * 0.01
 summary(df)
 
 df <- df %>% relocate("nonwhite_ratio", .before = "median_incomeE")
-reg_variables = c("pop_den", "nonwhite_ratio", "median_incomeE",
+reg_variables = c("pop_den", "white_ratio", "nonwhite_ratio", "median_incomeE",
                   "less_than_hs_ratio", "Commercial", "HighdensityResidential","Industrial",
                   "Institutional", "LowdensityResidential","ResidentialCommercial",
                   "min_station_dist", "vio_crimerate","nonvio_crimerate")
 
+
 ggpairs(df[,reg_variables])
 
-plots <- list()
-for (var in reg_variables) {
-  # Create a histogram for each variable
-  p <- ggplot(df, aes_string(x = var)) +
-    geom_histogram(fill = "#D79A1E", color = "black", alpha = 0.7) +
-    ggtitle(paste("Histogram of", var)) +
-    xlab(var) +
-    ylab("Frequency") +
-    theme_minimal()
-  
-  # Store the plot in the list
-  plots[[var]] <- p
-}
+#Violent Crime Model##################
 
-# View the plots (e.g., display the plot for the first variable)
-print(plots[[reg_variables[1]]])
-grid.arrange(grobs = plots, ncol = 4)
-
-
-#####################################################Violent crime model
 
 cor_matrix <- cor(df[reg_variables])
 round(cor_matrix,2)
 
-#1. Normal OLS
+##1. Normal OLS####
 ols_1 <- lm(vio_crimerate ~ pop_den + nonwhite_ratio +
               median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
               LowdensityResidential + ResidentialCommercial + min_station_dist, data = df)
@@ -100,7 +80,6 @@ ols_1_noout <- lm(vio_crimerate ~ pop_den + nonwhite_ratio +
                     LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout_vio)
 
 summary(ols_1_noout)
-
 # Compare no outliers to outliers using scaled coefficient plots
 dev.off()
 plot_summs(ols_1, ols_1_noout, scale = TRUE) +
@@ -179,7 +158,7 @@ plot(reg.summary$bic, # BIC values on y-axis. BIC is very similar to AIC except 
 
 points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col="red",cex=2,pch=20)
 
-######################optimal regression in violent crime
+##Optimal regression in violent crime#######
 #BIC lowest model
 vio_ols_v1 <- lm(vio_crimerate ~ pop_den + nonwhite_ratio +  less_than_hs_ratio 
                  + Industrial + Institutional + LowdensityResidential + min_station_dist, data = df_noout_vio)
@@ -210,7 +189,7 @@ abline(h = 0, col = 'red', lty = 2)
 ncvTest(vio_ols_v1) 
 #Chisquare = 108.5503, Shows strong heteroskedasticity!!! So, I generalized vio_crimerate
 
-###1. Log
+##1. Log#####
 vio_ols_v1_log <- lm(log(vio_crimerate+1) ~ pop_den + nonwhite_ratio +  less_than_hs_ratio 
                      + Industrial + Institutional + LowdensityResidential + min_station_dist, data = df_noout_vio)
 
@@ -226,11 +205,9 @@ plot(predict(vio_ols_v1_log),
 abline(h = 0, col = 'red', lty = 2)
 ncvTest(vio_ols_v1_log) 
 
-###2. Higher term
-
-#Normal Term
+##Normal Term#######
 vio_ols_v1 
-#Quadratic terms
+##Quadratic terms###
 vio_ols_v2 <- lm(vio_crimerate ~ 
                    pop_den + pop_den^2 + 
                    nonwhite_ratio + nonwhite_ratio^2 + 
@@ -241,7 +218,7 @@ vio_ols_v2 <- lm(vio_crimerate ~
                     min_station_dist + I((min_station_dist)^2), 
                  data = df_noout_vio)
 
-#Cubic Terms
+##Cubic Terms#######
 vio_ols_v3 <- lm(vio_crimerate ~ 
                    pop_den + pop_den^2 + + pop_den^3 +
                    nonwhite_ratio + nonwhite_ratio^2 + nonwhite_ratio^3 + 
@@ -359,24 +336,19 @@ vio_glm_v2 <- glm(binary_vio ~ pop_den + nonwhite_ratio +
                     LowdensityResidential, data = df_noout_vio, family = "binomial"(link = "logit"))
 summary(vio_glm_v1)
 summary(vio_glm_v2)
-
 vif(vio_glm_v1)
 vif(vio_glm_v2)
 # creating odds ratio
 # Regression result (with odds ratio conversion)
-
-
 round( # Rounds the numbers up to 3 digits
   cbind( # Column-bind Odds Ratio to the regerssion output
-    "Odds Ratio" = exp(vio_glm_v2$coefficients),
-    summary(vio_glm_v2)$coefficients
+    "Odds Ratio" = exp(vio_glm_v1$coefficients),
+    summary(vio_glm_v1)$coefficients
   ),3)
 
 # pseudo R-squared 0.4361733
 pR2(vio_glm_v1)[4]
 pR2(vio_glm_v2)[4]
-
-# Wes hould select vio_glm_v2
 
 # plotting the logistic curve
 
@@ -431,13 +403,12 @@ ggplot(df_noout_vio, aes(min_station_dist, binary_vio)) +
   xlab("Minimum Distance to Police Station") +
   ylab("Probability of violent crime")
 
-AIC(vio_glm_v1,vio_ols_v1_log,vio_ols_v1,vio_ols_v1_log_interaction)
-
 ##Below 5 or 10, Since all VIF values are well below 5 or 10, 
 #there is no evidence of significant multicollinearity in your model based on these results.
 
-###############################################################
-#############################################################NONViolent crime model
+
+
+#Non-Violent Crime Model##################
 # 1. Normal OLS
 outliers_regression_non <- lm(nonvio_crimerate ~ pop_den + nonwhite_ratio
                           + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
@@ -545,6 +516,8 @@ plot(reg.summary$bic, # BIC values on y-axis. BIC is very similar to AIC except 
 
 points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col="red",cex=2,pch=20)
 
+
+
 ######################optimal regression in nonviolent model
 #BIC lowest model (7 variables)
 nonvio_ols_v1 <- lm(nonvio_crimerate ~ pop_den + nonwhite_ratio 
@@ -590,50 +563,6 @@ barplot(vif_v1_log, main = "VIF Values", horiz = TRUE, col = "steelblue")
  
 #All values below 2, looks good!
 
-#Considering interactive term(Yanfu)
-#for non_white ratio and population density, there might be an interaction in how they 
-#influence the crime rate.
-
-#check pop_den and non-white for interaction
-range(df_noout_nonvio$nonwhite_ratio)
-range(df_noout_nonvio$pop_den)
-
-#low and high value subsets for non_white
-nonwhite_low_1 <- df_noout_nonvio[df_noout_nonvio$nonwhite_ratio <= 20, ]
-nonwhite_high_1 <- df_noout_nonvio[df_noout_nonvio$nonwhite_ratio >= 80, ]
-nw_low_mod_1 <- lm(I(log(vio_crimerate + 1)) ~ pop_den, data = nonwhite_low_1)
-summary(nw_low_mod_1)
-nw_high_mod_1 <- lm(I(log(vio_crimerate + 1)) ~ pop_den, data = nonwhite_high_1)
-summary(nonwhite_high_1)
-
-par(mfrow = c(1,1))
-plot(x = nonwhite_low_1$pop_den, y = log(nonwhite_low_1$vio_crimerate+1), 
-     pch = 19, xlab = "population density", ylab = "log_crimerate", col = rgb(red = 0, green = 0, blue = 1, alpha = 0.25)) +
-  abline(nw_low_mod_1, col = "blue", lwd = 2) +
-  points(x = nonwhite_high_1$pop_den, log(nonwhite_high_1$vio_crimerate+1), 
-         col = rgb(red = 1, green = 0, blue = 0, alpha = 0.25), pch = 19) +
-  abline(nw_high_mod_1, col = "red", lwd = 2)
-#from this plot we can see the slopes of low non white and high non white are different. There is
-#an interaction between non white and pop den.
-
-#We can now add the interaction term to model
-lm(nonvio_crimerate ~ pop_den + nonwhite_ratio 
-   + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio)
-nonvio_ols_v1_log_interaction <- lm(I(log(nonvio_crimerate + 1)) ~ pop_den + nonwhite_ratio + pop_den:nonwhite_ratio
-                                    + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio)
-
-summary(nonvio_ols_v1_log_interaction)
-
-plot(predict(nonvio_ols_v1_log_interaction), 
-     nonvio_ols_v1_log_interaction$residuals, 
-     xlab = "Predicted values",
-     ylab = "Residuals",
-     main = "Residuals vs. Predicted")
-abline(h = 0, col = 'red', lty = 2)
-
-AIC(nonvio_ols_v1_log_interaction,nonvio_ols_v1_log)
-
-
 # Considering glm function for non_vio
 # create binary column for violent crime rate
 median_noncrimerate <- median(df_noout_nonvio$nonvio_crimerate, na.rm = TRUE)
@@ -643,8 +572,6 @@ df_noout_nonvio$binary_nonvio <- ifelse(df_noout_nonvio$nonvio_crimerate > media
 non_vio_glm_v1 <- glm(binary_nonvio ~ pop_den + nonwhite_ratio +
                       + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
 
-
-
 summary(non_vio_glm_v1)
 
 vif(non_vio_glm_v1)
@@ -652,8 +579,8 @@ vif(non_vio_glm_v1)
 # Regression result (with odds ratio conversion)
 round( # Rounds the numbers up to 3 digits
   cbind( # Column-bind Odds Ratio to the regerssion output
-    "Odds Ratio" = exp(non_vio_glm_v1$coefficients),
-    summary(non_vio_glm_v1)$coefficients
+    "Odds Ratio" = exp(vio_glm_v1$coefficients),
+    summary(vio_glm_v1)$coefficients
   ),3)
 
 # pseudo R-squared 0.4361733
@@ -718,5 +645,3 @@ ggplot(df_noout_nonvio, aes(min_station_dist, binary_nonvio)) +
   ggtitle("Logistic regression model fit") +
   xlab("Minimum Distance to Police Station") +
   ylab("Probability of nonviolent crime")
-
-AIC(non_vio_glm_v1, nonvio_ols_v1_log, nonvio_ols_v1)
