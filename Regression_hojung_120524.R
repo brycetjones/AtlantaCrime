@@ -15,7 +15,7 @@ library(MASS)
 library(psych)
 library(pscl)
 
-#Data Manipulation#######
+#Data Cleaning#######
 df_org <- read.csv("data_final.csv")
 
 head(df_org)
@@ -64,7 +64,7 @@ summary(ols_1)
 cd_ols1 <- cooks.distance(ols_1)
 df$cd_ols1 <- cd_ols1
 
-plot(cd_ols1, pch = "*", cex = 2, main = "Influential Obs by Cooks Distance")
+plot(cd_ols1, pch = "*", cex = 2, main = "Cooks Distance for Violent Crime OLS")
 abline(h = 4*mean (cd_ols1, na.rm = T), col = "red")
 text(x = 1: length(cd_ols1) + 5,
      y = cd_ols1,
@@ -73,28 +73,37 @@ text(x = 1: length(cd_ols1) + 5,
                      names(cd_ols1),
                      ""))
 
-#Remove influential observations
+###Remove outliers##########
 df_noout_vio <- df[df$cd_ols1 < 4 * mean(cd_ols1, na.rm = T), ] # exclude hih-influence points not using 4 * mean
 ols_1_noout <- lm(vio_crimerate ~ pop_den + nonwhite_ratio +
                     median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
                     LowdensityResidential + ResidentialCommercial + min_station_dist, data = df_noout_vio)
-
+summary(ols_1)
 summary(ols_1_noout)
 # Compare no outliers to outliers using scaled coefficient plots
 dev.off()
-plot_summs(ols_1, ols_1_noout, scale = TRUE) +
-  ggtitle("Comparison of Regression Models",
+plot_summs(ols_1, ols_1_noout, scale = TRUE, 
+           model.names = c("With Outliers", "Without Outliers")) +
+  ggtitle("Comparison of Violent Crime Models",
           subtitle = "With Outliers vs Without Outliers") +
   theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5)) +
-  theme(plot.subtitle = element_text(size = 12, hjust = 0.5, color = "blue"))
-
+  theme(plot.subtitle = element_text(size = 12, hjust = 0.5, color = "blue")) +
+  labs(
+    color = "Model Type",  # Legend title
+    linetype = "Model Type"  # For line type legend, if applicable
+  ) +
+  theme(
+    legend.title = element_text(size = 12, face = "bold"),  # Style for legend title
+    legend.text = element_text(size = 10),  # Style for legend text
+    legend.position = "right"  # Change position (e.g., "top", "bottom", "left", "right")
+  )
 AIC(ols_1, ols_1_noout)
 
 # Not conducting log-regression since it is not significant with these datasets.
 # Using df_noout_vio without outliers since it has smaller AIC score.
 # Variables Selection
 
-##Stepwise
+###Stepwise########
 null.model <- lm(vio_crimerate ~ 1, data = df_noout_vio)
 full.model <- lm(vio_crimerate ~ pop_den + nonwhite_ratio
                  + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
@@ -115,7 +124,7 @@ step.model.both <- step(null.model,
                         trace = 0)
 
 stargazer(step.model.for, step.model.back, step.model.both,
-          type = "text",
+          type="latex",
           add.lines = list(c("AIC", round(AIC(step.model.for),1), round(AIC(step.model.back),1), round(AIC(step.model.both),1))),
           column.labels = c("Forward", "Backward", "Both"))
 
@@ -194,6 +203,7 @@ vio_ols_v1_log <- lm(log(vio_crimerate+1) ~ pop_den + nonwhite_ratio +  less_tha
                      + Industrial + Institutional + LowdensityResidential + min_station_dist, data = df_noout_vio)
 
 summary(vio_ols_v1_log) 
+AIC(vio_ols_v1_log)
 #Dependent Variable log formation's regression model is different from the original one
 #Saying that less_than_hs_ratio is insignificant. 
 
@@ -406,6 +416,9 @@ ggplot(df_noout_vio, aes(min_station_dist, binary_vio)) +
 ##Below 5 or 10, Since all VIF values are well below 5 or 10, 
 #there is no evidence of significant multicollinearity in your model based on these results.
 
+### Running model ########
+test_data <- df_noout_vio[387, ]
+predicted_prob <- predict(vio_glm_v1, newdata = test_data, type = "response")
 
 
 #Non-Violent Crime Model##################
@@ -429,7 +442,7 @@ text(x = 1: length(cd_ols2) + 5,
                      names(cd_ols2),
                      ""))
 
-#Remove influential observations
+###Remove outliers##########
 df_noout_nonvio <- subset(df[df$cd_ols2 < 4 * mean(cd_ols2, na.rm = T), ])
 outliers_regression_noout_non <- lm(nonvio_crimerate ~ pop_den + nonwhite_ratio
                                 + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
@@ -438,15 +451,26 @@ summary(outliers_regression_noout_non)
 
 #Plot the difference
 
-plot_summs(outliers_regression_non, outliers_regression_noout_non, scale = TRUE) +
-  ggtitle("Comparison of Regression Models",
+dev.off()
+plot_summs(outliers_regression_non, outliers_regression_noout_non, scale = TRUE, 
+           model.names = c("With Outliers", "Without Outliers")) +
+  ggtitle("Comparison of Non-Violent Crime Models",
           subtitle = "With Outliers vs Without Outliers") +
   theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5)) +
-  theme(plot.subtitle = element_text(size = 12, hjust = 0.5, color = "blue"))
+  theme(plot.subtitle = element_text(size = 12, hjust = 0.5, color = "blue")) +
+  labs(
+    color = "Model Type",  # Legend title
+    linetype = "Model Type"  # For line type legend, if applicable
+  ) +
+  theme(
+    legend.title = element_text(size = 12, face = "bold"),  # Style for legend title
+    legend.text = element_text(size = 10),  # Style for legend text
+    legend.position = "right"  # Change position (e.g., "top", "bottom", "left", "right")
+  )
 
-AIC(outliers_regression_non)
-AIC(outliers_regression_noout_non)
-
+AIC(nonvio_ols_v1, nonvio_ols_v2)
+summary(nonvio_ols_v1)
+summary(nonvio_ols_v2)
 # Not conducting log-regression since it is not significant with these datasets.
 # Using df_noout_NONvio without outliers since it has smaller AIC score.
 # Variables Selection
@@ -547,7 +571,7 @@ nonvio_ols_v1_log <- lm(I(log(nonvio_crimerate + 1)) ~ pop_den + nonwhite_ratio 
                     + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio)
 
 summary(nonvio_ols_v1_log)
-
+AIC(nonvio_ols_v1_log)
 plot(predict(nonvio_ols_v1_log), 
      nonvio_ols_v1_log$residuals, 
      xlab = "Predicted values",
@@ -576,25 +600,24 @@ non_vio_glm_interact <- glm(binary_nonvio ~ pop_den + less_than_hs_ratio:nonwhit
 non_vio_glm_hs_removed <- glm(binary_nonvio ~ pop_den + nonwhite_ratio + 
                          Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
 non_vio_glm_nonwhite_removed <- glm(binary_nonvio ~ pop_den + less_than_hs_ratio 
-                                + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
+                                + Commercial + LowdensityResidential +  HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
 
 # Comparing stats
 summary(non_vio_glm_all)
 summary(non_vio_glm_interact)
 summary(non_vio_glm_hs_removed)
 summary(non_vio_glm_nonwhite_removed)
-
-AIC(non_vio_glm_v1, non_vio)
-vif(non_vio_glm_v1)
+pR2(non_vio_glm_nonwhite_removed)[4]
 # creating odds ratio
 # Regression result (with odds ratio conversion)
 round( # Rounds the numbers up to 3 digits
   cbind( # Column-bind Odds Ratio to the regerssion output
-    "Odds Ratio" = exp(non_vio_glm_v1$coefficients),
-    summary(non_vio_glm_v1)$coefficients
+    "Odds Ratio" = exp(non_vio_glm_nonwhite_removed$coefficients),
+    summary(non_vio_glm_nonwhite_removed)$coefficients
   ),3)
 
-round(exp(confint(non_vio_glm_v1, level=.95)),3)
+round(exp(confint(non_vio_glm_nonwhite_removed, level=.95)),3)
+
 # pseudo R-squared 0.4361733
 pR2(vio_glm_v1)[4]
 
@@ -657,3 +680,8 @@ ggplot(df_noout_nonvio, aes(min_station_dist, binary_nonvio)) +
   ggtitle("Logistic regression model fit") +
   xlab("Minimum Distance to Police Station") +
   ylab("Probability of nonviolent crime")
+
+### Running Model #######
+test_data <- df_noout_nonvio[387, ]
+predicted_prob_nonviolent <- predict(non_vio_glm_nonwhite_removed, newdata = test_data, type = "response")
+
