@@ -333,7 +333,7 @@ vio_glm_v1 <- glm(binary_vio ~ pop_den + nonwhite_ratio +
 # binary logical regression (took out industrial)
 vio_glm_v2 <- glm(binary_vio ~ pop_den + nonwhite_ratio + 
                     less_than_hs_ratio + Institutional +
-                    LowdensityResidential, data = df_noout_vio, family = "binomial"(link = "logit"))
+                    LowdensityResidential + , data = df_noout_vio, family = "binomial"(link = "logit"))
 summary(vio_glm_v1)
 summary(vio_glm_v2)
 vif(vio_glm_v1)
@@ -342,16 +342,16 @@ vif(vio_glm_v2)
 # Regression result (with odds ratio conversion)
 round( # Rounds the numbers up to 3 digits
   cbind( # Column-bind Odds Ratio to the regerssion output
-    "Odds Ratio" = exp(vio_glm_v1$coefficients),
-    summary(vio_glm_v1)$coefficients
+    "Odds Ratio" = exp(vio_glm_v2$coefficients),
+    summary(vio_glm_v2)$coefficients
   ),3)
+
+round(exp(confint(vio_glm_v2)),3)
 
 # pseudo R-squared 0.4361733
 pR2(vio_glm_v1)[4]
 pR2(vio_glm_v2)[4]
-
-# plotting the logistic curve
-
+AIC(vio_glm_v2, vio_ols_v1_log_interaction, ols_1)
 # population density with violent crime
 ggplot(df_noout_vio, aes(pop_den, binary_vio)) +
   geom_point(alpha = 0.15) +
@@ -569,20 +569,32 @@ median_noncrimerate <- median(df_noout_nonvio$nonvio_crimerate, na.rm = TRUE)
 df_noout_nonvio$binary_nonvio <- ifelse(df_noout_nonvio$nonvio_crimerate > median_noncrimerate, 1, 0)
 
 # binary logical regression
-non_vio_glm_v1 <- glm(binary_nonvio ~ pop_den + nonwhite_ratio +
-                      + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
+non_vio_glm_all <- glm(binary_nonvio ~ pop_den + nonwhite_ratio + less_than_hs_ratio
+                         + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
+non_vio_glm_interact <- glm(binary_nonvio ~ pop_den + less_than_hs_ratio:nonwhite_ratio + 
+                         + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
+non_vio_glm_hs_removed <- glm(binary_nonvio ~ pop_den + nonwhite_ratio + 
+                         Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
+non_vio_glm_nonwhite_removed <- glm(binary_nonvio ~ pop_den + less_than_hs_ratio 
+                                + Commercial + HighdensityResidential + Industrial + ResidentialCommercial + min_station_dist, data = df_noout_nonvio, family = "binomial"(link = "logit"))
 
-summary(non_vio_glm_v1)
+# Comparing stats
+summary(non_vio_glm_all)
+summary(non_vio_glm_interact)
+summary(non_vio_glm_hs_removed)
+summary(non_vio_glm_nonwhite_removed)
+
 AIC(non_vio_glm_v1, non_vio)
 vif(non_vio_glm_v1)
 # creating odds ratio
 # Regression result (with odds ratio conversion)
 round( # Rounds the numbers up to 3 digits
   cbind( # Column-bind Odds Ratio to the regerssion output
-    "Odds Ratio" = exp(vio_glm_v1$coefficients),
-    summary(vio_glm_v1)$coefficients
+    "Odds Ratio" = exp(non_vio_glm_v1$coefficients),
+    summary(non_vio_glm_v1)$coefficients
   ),3)
 
+round(exp(confint(non_vio_glm_v1, level=.95)),3)
 # pseudo R-squared 0.4361733
 pR2(vio_glm_v1)[4]
 
