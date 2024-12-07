@@ -215,9 +215,10 @@ plot(predict(vio_ols_v1_log),
 abline(h = 0, col = 'red', lty = 2)
 ncvTest(vio_ols_v1_log) 
 
-##Normal Term#######
+##Higher Order Terms#######
+# Normal Term
 vio_ols_v1 
-##Quadratic terms###
+# Quadratic terms
 vio_ols_v2 <- lm(vio_crimerate ~ 
                    pop_den + pop_den^2 + 
                    nonwhite_ratio + nonwhite_ratio^2 + 
@@ -228,7 +229,7 @@ vio_ols_v2 <- lm(vio_crimerate ~
                     min_station_dist + I((min_station_dist)^2), 
                  data = df_noout_vio)
 
-##Cubic Terms#######
+# Cubic
 vio_ols_v3 <- lm(vio_crimerate ~ 
                    pop_den + pop_den^2 + + pop_den^3 +
                    nonwhite_ratio + nonwhite_ratio^2 + nonwhite_ratio^3 + 
@@ -242,12 +243,11 @@ vio_ols_v3 <- lm(vio_crimerate ~
 AIC(vio_ols_v1,vio_ols_v2,vio_ols_v3)
 plot_summs(vio_ols_v1, vio_ols_v2,vio_ols_v3, scale = TRUE)
 
-plot_summs(vio_ols_v1, vio_ols_v2,vio_ols_v3, scale = TRUE) +
-  ggtitle("Comparison of Regression Models",
+plot_summs(vio_ols_v1, vio_ols_v2, vio_ols_v3, scale = TRUE, model.names = c("Normal", "Quadratic", "Cubic")) +
+  ggtitle("Violent Crime Models",
           subtitle = "Normal vs. Quadratic vs. Cubic") +
   theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5)) +
   theme(plot.subtitle = element_text(size = 12, hjust = 0.5, color = "blue"))
-
  
 
 # # Stepwise selection based on AIC
@@ -476,7 +476,7 @@ summary(nonvio_ols_v2)
 # Variables Selection
 
 
-##Stepwise
+##Stepwise######
 null.model <- lm(nonvio_crimerate ~ 1, data = df_noout_nonvio)
 full.model <- lm(nonvio_crimerate ~ pop_den + nonwhite_ratio
                  + median_incomeE + less_than_hs_ratio + Commercial + HighdensityResidential + Industrial + Institutional +
@@ -540,7 +540,35 @@ plot(reg.summary$bic, # BIC values on y-axis. BIC is very similar to AIC except 
 
 points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col="red",cex=2,pch=20)
 
+## Higher Order Terms #########
+nonvio_ols_quad <- lm(nonvio_crimerate ~ 
+                        pop_den + I(pop_den^2) + 
+                        nonwhite_ratio + I(nonwhite_ratio^2) +
+                        Commercial + I(Commercial^2) + 
+                        HighdensityResidential + I(HighdensityResidential^2) + 
+                        Industrial + I(Industrial^2) + 
+                        ResidentialCommercial + I(ResidentialCommercial^2) + 
+                        min_station_dist + I(min_station_dist^2), 
+                      data = df_noout_nonvio)
 
+nonvio_ols_cb <- lm(nonvio_crimerate ~ 
+                      pop_den + I(pop_den^2) + I(pop_den^3) + 
+                      nonwhite_ratio + I(nonwhite_ratio^2) + I(nonwhite_ratio^3) + 
+                      Commercial + I(Commercial^2) + I(Commercial^3) + 
+                      HighdensityResidential + I(HighdensityResidential^2) + I(HighdensityResidential^3) + 
+                      Industrial + I(Industrial^2) + I(Industrial^3) + 
+                      ResidentialCommercial + I(ResidentialCommercial^2) + I(ResidentialCommercial^3) + 
+                      min_station_dist + I(min_station_dist^2) + I(min_station_dist^3), 
+                    data = df_noout_nonvio)
+
+AIC(nonvio_ols_quad,nonvio_ols_cb,nonvio_ols_v2)
+plot_summs(nonvio_ols_v2, nonvio_ols_quad,nonvio_ols_cb, scale = TRUE)
+
+plot_summs(nonvio_ols_v2, nonvio_ols_quad, nonvio_ols_cb, scale = TRUE, model.names = c("Normal", "Quadratic", "Cubic")) +
+  ggtitle("Non-Violent Crime Models",
+          subtitle = "Normal vs. Quadratic vs. Cubic") +
+  theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5)) +
+  theme(plot.subtitle = element_text(size = 12, hjust = 0.5, color = "blue"))
 
 ##optimal regression in nonviolent model######
 #BIC lowest model (7 variables)
@@ -684,4 +712,4 @@ ggplot(df_noout_nonvio, aes(min_station_dist, binary_nonvio)) +
 ### Running Model #######
 test_data <- df_noout_nonvio[387, ]
 predicted_prob_nonviolent <- predict(non_vio_glm_nonwhite_removed, newdata = test_data, type = "response")
-
+summary(df$nonvio_crimerate)
